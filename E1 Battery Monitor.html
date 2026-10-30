@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#4c1d95">
+<title>E1 Battery Monitor</title>
+<style>
+:root{--bg:#f5f2fb;--sf:#fff;--tx:#231a35;--mut:#6b6182;--ac:#6d28d9;--ac2:#a78bfa;--ln:#e2daf1;--ok:#15803d;--bad:#b91c1c;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#130d20;--sf:#1e1630;--tx:#efeafa;--mut:#a79bc2;--ac:#a78bfa;--ac2:#7c3aed;--ln:#32264d;--ok:#4ade80;--bad:#f87171}}
+:root[data-theme="dark"]{--bg:#130d20;--sf:#1e1630;--tx:#efeafa;--mut:#a79bc2;--ac:#a78bfa;--ac2:#7c3aed;--ln:#32264d;--ok:#4ade80;--bad:#f87171}
+*,*::before,*::after{box-sizing:inherit}
+html,body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:520px;margin:0 auto;padding:16px 16px 96px}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px}
+h1{font-size:1.15rem;margin:0;font-weight:700;letter-spacing:.01em}
+.pill{font-size:.8rem;padding:4px 10px;border-radius:99px;border:1px solid var(--ln);color:var(--mut);background:var(--sf)}
+.pill.on{color:var(--ok);border-color:var(--ok)}
+.hero{background:var(--sf);border:1px solid var(--ln);border-radius:20px;padding:20px;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.big{font-size:3.2rem;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.big small{font-size:1.1rem;font-weight:600;color:var(--mut);margin-left:3px}
+.lbl{color:var(--mut);font-size:.85rem;margin-top:6px}
+.bar{grid-column:1/-1;height:10px;border-radius:99px;background:var(--ln);overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--ac2),var(--ac));transition:width .4s}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0}
+.card{background:var(--sf);border:1px solid var(--ln);border-radius:14px;padding:14px}
+.card b{display:block;font-size:1.5rem;font-variant-numeric:tabular-nums}
+h2{font-size:1rem;margin:20px 0 8px}
+.cells{display:flex;gap:4px;align-items:flex-end;height:120px;background:var(--sf);border:1px solid var(--ln);border-radius:14px;padding:12px 10px 8px}
+.cell{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;min-width:0}
+.cell i{display:block;width:100%;border-radius:4px 4px 2px 2px;background:var(--ac2);min-height:3px}
+.cell.lo i{background:var(--bad)}.cell.hi i{background:var(--ok)}
+.cell span{font-size:.6rem;color:var(--mut);margin-top:3px}
+.note{color:var(--mut);font-size:.85rem;margin:8px 2px}
+details{margin-top:20px;background:var(--sf);border:1px solid var(--ln);border-radius:14px;padding:12px 14px}
+pre{white-space:pre-wrap;word-break:break-all;font-size:.72rem;max-height:200px;overflow:auto;margin:8px 0}
+button{font:inherit;border:0;border-radius:14px;padding:14px 20px;background:var(--ac2);color:#fff;font-weight:700;cursor:pointer}
+button.sec{background:transparent;color:var(--ac);border:1px solid var(--ln);padding:8px 14px;font-weight:600}
+.dock{position:fixed;left:0;right:0;bottom:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));background:var(--bg);border-top:1px solid var(--ln);display:flex;justify-content:center}
+.dock button{width:100%;max-width:488px}
+#err{color:var(--bad);font-size:.9rem;margin:10px 2px;display:none}
+</style>
+</head>
+<body>
+<main>
+<header><h1>E1 Battery Monitor</h1><span class="pill" id="st">Not connected</span></header>
+
+<section class="hero">
+<div><div class="big"><span id="soc">--</span><small>%</small></div><div class="lbl">Charge</div></div>
+<div><div class="big"><span id="kw">--</span><small>kW</small></div><div class="lbl" id="mode">Waiting for data</div></div>
+<div class="bar"><i id="fill"></i></div>
+</section>
+
+<div class="grid">
+<div class="card"><b id="v">--</b><div class="lbl">Pack voltage (V)</div></div>
+<div class="card"><b id="a">--</b><div class="lbl">Current (A)</div></div>
+<div class="card"><b id="sp">--</b><div class="lbl">Cell difference (mV)</div></div>
+<div class="card"><b id="n">--</b><div class="lbl">Cells detected</div></div>
+</div>
+
+<h2>Cell voltages</h2>
+<div class="cells" id="cells" aria-label="Cell voltages"></div>
+<p class="note" id="range">Lowest and highest cells are marked red and green.</p>
+
+<p id="err" role="alert"></p>
+
+<details>
+<summary>Diagnostics</summary>
+<p class="note">If a reading looks wrong, tap Copy and send it to Claude along with what the official app shows at the same moment.</p>
+<button class="sec" id="copy">Copy raw data</button>
+<pre id="raw">No data yet.</pre>
+</details>
+</main>
+
+<div class="dock"><button id="go">Connect to bike</button></div>
+
+<script>
+(function(){
+var SVC=0xffe0,CHR=0xffe1;
+var REQ=new Uint8Array([0x7e,0xa1,0x01,0x00,0x00,0xbe,0x18,0x55,0xaa]);
+var dev=null,chr=null,timer=null,buf=[],lastHex="";
+function $(i){return document.getElementById(i)}
+function err(m){var e=$("err");e.textContent=m||"";e.style.display=m?"block":"none"}
+function st(t,on){var p=$("st");p.textContent=t;p.className="pill"+(on?" on":"")}
+function u16(f,o){return (f[o]<<8)|f[o+1]}
+function i16(f,o){var v=u16(f,o);return v>32767?v-65536:v}
+function hex(a){return Array.prototype.map.call(a,function(b){return ("0"+b.toString(16)).slice(-2)}).join(" ")}
+
+function parse(f){
+  var cells=[];
+  for(var o=34;o+1<f.length-4;o+=2){var c=u16(f,o);if(c>=2000&&c<=4500)cells.push(c);else break}
+  var sum=cells.reduce(function(s,c){return s+c},0)/1000;
+  var v=u16(f,118)*0.01, cur=i16(f,120)*0.1, soc=u16(f,122);
+  var vOk=cells.length>0&&Math.abs(v-sum)<sum*0.05;
+  if(!vOk)v=sum;
+  if(!(soc>=0&&soc<=100))soc=null;
+  if(Math.abs(cur)>500)cur=null;
+  show(cells,v,cur,soc);
+}
+
+function show(cells,v,cur,soc){
+  $("v").textContent=v?v.toFixed(1):"--";
+  $("a").textContent=cur===null?"--":cur.toFixed(1);
+  $("n").textContent=cells.length||"--";
+  $("soc").textContent=soc===null?"--":soc;
+  $("fill").style.width=(soc||0)+"%";
+  if(cur!==null&&v){
+    var kw=v*cur/1000;
+    $("kw").textContent=Math.abs(kw).toFixed(1);
+    $("mode").textContent=Math.abs(cur)<0.5?"Idle":(cur>0?"Charging":"Discharging");
+  }
+  var mn=Math.min.apply(null,cells),mx=Math.max.apply(null,cells);
+  $("sp").textContent=cells.length?(mx-mn):"--";
+  var h="";
+  cells.forEach(function(c,i){
+    var p=Math.max(4,Math.min(100,(c-3000)/12));
+    var k=cells.length>1&&mx!==mn?(c===mn?" lo":(c===mx?" hi":"")):"";
+    h+='<div class="cell'+k+'"><i style="height:'+p+'%"></i><span>'+(i+1)+'</span></div>';
+  });
+  $("cells").innerHTML=h;
+  if(cells.length)$("range").textContent="Lowest "+(mn/1000).toFixed(3)+" V, highest "+(mx/1000).toFixed(3)+" V.";
+}
+
+function onData(e){
+  var d=new Uint8Array(e.target.value.buffer);
+  for(var i=0;i<d.length;i++)buf.push(d[i]);
+  if(buf.length>400){buf=[];return}
+  var s=-1;
+  for(var j=0;j<buf.length-1;j++){if(buf[j]===0x7e&&buf[j+1]===0xa1){s=j;break}}
+  if(s<0){buf=[];return}
+  if(s>0)buf=buf.slice(s);
+  var n=buf.length;
+  if(n>=12&&buf[n-2]===0xaa&&buf[n-1]===0x55){
+    var f=buf.slice();buf=[];
+    lastHex=hex(f);
+    $("raw").textContent="Function 0x"+f[2].toString(16)+", "+f.length+" bytes\n"+lastHex;
+    if(f[2]===0x11&&f.length>=124){try{parse(f)}catch(x){err("Couldn’t read this data frame.")}}
+  }
+}
+
+function poll(){
+  if(!chr)return;
+  var p=chr.writeValueWithoutResponse?chr.writeValueWithoutResponse(REQ):chr.writeValue(REQ);
+  p.catch(function(){});
+}
+
+function onDrop(){
+  clearInterval(timer);chr=null;
+  st("Disconnected",false);
+  $("go").textContent="Reconnect";$("go").disabled=false;
+}
+
+async function connect(){
+  err("");
+  if(!navigator.bluetooth){err("This browser can’t use Bluetooth. Open this page in Chrome on Android, with Bluetooth and location turned on.");return}
+  $("go").disabled=true;
+  try{
+    if(!dev){
+      dev=await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:[SVC]});
+      dev.addEventListener("gattserverdisconnected",onDrop);
+    }
+    st("Connecting…",false);
+    var srv=await dev.gatt.connect();
+    var s=await srv.getPrimaryService(SVC);
+    chr=await s.getCharacteristic(CHR);
+    await chr.startNotifications();
+    chr.addEventListener("characteristicvaluechanged",onData);
+    buf=[];poll();timer=setInterval(poll,2000);
+    st("Connected",true);
+    $("go").textContent="Disconnect";$("go").disabled=false;
+  }catch(x){
+    st("Not connected",false);
+    $("go").textContent="Connect to bike";$("go").disabled=false;
+    err(x&&x.name==="NotFoundError"?"No device chosen. Close the official ANT BMS app first, then try again.":"Couldn’t connect: "+(x&&x.message?x.message:x)+". Close the official ANT BMS app and try again.");
+  }
+}
+
+$("go").addEventListener("click",function(){
+  if(chr&&dev&&dev.gatt.connected){dev.gatt.disconnect()}else{connect()}
+});
+$("copy").addEventListener("click",function(){
+  var t=lastHex||"no data";
+  try{navigator.clipboard.writeText(t).then(function(){$("copy").textContent="Copied"})}catch(x){}
+});
+})();
+</script>
+</body>
+</html>
